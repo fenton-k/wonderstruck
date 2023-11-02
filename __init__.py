@@ -1,6 +1,7 @@
 import requests as r
 import browser_cookie3
 import time
+import threading
 
 # wonderstruck is enchanting!
 
@@ -99,10 +100,18 @@ class Mainframe:
     def update_cookies(self):
         self.cj = browser_cookie3.chrome(domain_name='sis.stolaf.edu')
 
-    def print_course_list(self, dep=""):
-        for c in self.course_list:
-            if dep == "" or dep == c.dep:
-                print(c)
+    def print_course_list(self, dep="", notfull=0):
+        if notfull:
+            for c in self.course_list:
+                if not c.capacity:
+                    continue
+                nums = c.capacity.split('/')
+                if int(nums[0]) < int(nums[1]):
+                    print(c)
+        else:
+            for c in self.course_list:
+                if dep == "" or dep == c.dep:
+                    print(c)
 
     def choose_classes(self):
         print("\nUse dep_name class_num section (enter 0 if only 1 section) format\nExample: SOAN 121 0\nEnter q to stop\n")
@@ -112,17 +121,20 @@ class Mainframe:
             try:
                 if usr[0].upper() == "Q":
                     break
+                if usr[0].upper() == "NOTFULL":
+                    self.print_course_list(notfull=1)
+                    continue
                 if usr[0].upper() == "ALL":
                     self.print_course_list()
                     continue
-                
+
                 dep = usr[0].upper()
                 num = usr[1]
                 sec = usr[2]
                 if sec != "0":
-                    sec = sec.upper()
+                    sec = sec.upper()   
             except:
-                print("bad input. Example: SOAN 121 0\n")
+                print("\nbad input. Example: SOAN 121 0\n")
                 continue
 
             if dep not in self.dep_list:
@@ -139,13 +151,20 @@ class Mainframe:
                 print("course not found. available {} classes:".format(dep))
                 self.print_course_list(dep)
 
+    def run_req(self, url):
+        response = r.post(url, headers=self.h, data=c.gen_add_data(), cookies=self.cj).text
+        self.parse_response(response, c)
+        
+
     def send_post_requests(self, times=1):
         for i in range(times):
             print("\nattempt #{}\n-----------------------".format(i+1))            
             for c in self.user_classes:
                 print("sending ADD request for {}".format(c.name))
-                response = r.post(url, headers=self.h, data=c.gen_add_data(), cookies=self.cj).text
-                self.parse_response(response, c)
+                #response = r.post(url, headers=self.h, data=c.gen_add_data(), cookies=self.cj).text
+                #self.parse_response(response, c)
+                #print(response)
+                threading.Thread(target=run_req, args=(url, self.h, c.gen_add_data(), self.cj)).start()
 
     def parse_response(self, response, course):
         lines = response.splitlines()
@@ -168,6 +187,12 @@ class Mainframe:
         for e in error_list:
             if e in response:
                 print(error_list[e] + "\n")
+
+
+# this is a helper function to make the requests without waiting
+# for a response via the "threading.Thread" line in send_post_requests()
+def run_req(url, h, d, c):
+    r.post(url, headers=h, data=d, cookies=c)
            
 class Course:
     def __init__(self, dep, num, sec, c_id, name, cap):
@@ -184,7 +209,7 @@ class Course:
             "classlab_id" : str(self.c_id),
             "variable_credits" : "N",
             "grading_type" : "G",
-            "selected_year_term" : "20213"
+            "selected_year_term" : "20233"
         }
 
     def __str__(self):
@@ -193,13 +218,18 @@ class Course:
 # urls to essential things, should be updated every semester
 index_url = "https://sis.stolaf.edu/sis/index.cfm"
 desc_url = "https://sis.stolaf.edu/sis/public-coursedesc.cfm?clbid="
+#url = "https://sis.stolaf.edu/sis/st-registration-interim.cfm"
 url = "https://sis.stolaf.edu/sis/st-registration-spring.cfm"
+
+#search_url = "https://sis.stolaf.edu/sis/st-registration-interim.cfm?searchinstructionmode=S&submit=Search#search_results"
 search_url = "https://sis.stolaf.edu/sis/st-registration-spring.cfm?searchinstructionmode=S&submit=Search#search_results"
+
 
 def main():
     mf = Mainframe()
     mf.choose_classes()    
-    mf.send_post_requests(5)
+    mf.send_post_requests(500)
+    print("done!")
 
 if __name__ == "__main__":
     main()
